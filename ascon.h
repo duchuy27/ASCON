@@ -7,11 +7,20 @@
 #define REG_SIZE 8U             // Size of Register is 64 bits (8 bytes) (320/5 = 64 bits)
 #define TAG_LEN 16U
 
-const uint64_t round_constants[12] = {0xf0, 0xe1, 0xd2, 0xc3, 0xb4, 0xa5, 0x96, 0x87, 0x78, 0x69, 0x5a, 0x4b};
+const uint8_t round_constants[12] = {0xf0, 0xe1, 0xd2, 0xc3, 0xb4, 0xa5, 0x96, 0x87, 0x78, 0x69, 0x5a, 0x4b};
 const uint8_t s_box[32] = {0x4, 0xb, 0x1f, 0x14, 0x1a, 0x15, 0x9, 0x2, 0x1b, 0x5, 0x8, 0x12, 0x1d, 0x3, 0x6, 0x1c,
                             0x1e, 0x13, 0x7, 0xe, 0x0, 0xd, 0x11, 0x18, 0x10, 0xc, 0x1, 0x19, 0x16, 0xa, 0xf, 0x17};
 
-
+//In giá trị ra
+void print_HEX(uint8_t vari[], int len){
+    for (int i = 0; i < len; i++) {
+        if(i%8 == 0){
+            printf("\t");
+        }
+        printf("%02x", vari[i]); // In ra mỗi byte của IV dưới dạng HEX
+    }
+    printf("\n");
+}
 
 void Init_IV(uint8_t *IV, uint8_t k, uint8_t r, uint8_t a, uint8_t b) {
     // Create a IV with k, r, a and b
@@ -45,18 +54,49 @@ void Init_S(uint8_t *S, uint8_t *IV, const uint8_t *Key, const uint8_t *Nonce) {
     // S = IV || K || N
     memcpy(S, IV, IV_LEN);
     memcpy(S + IV_LEN, Key, KEY_LEN);
-    memcpy(S + IV_LEN + KEY_LEN, Nonce, IV_LEN);
+    memcpy(S + IV_LEN + KEY_LEN, Nonce, NONCE_LEN);
 }
 
 // Hàm pC - Addition of Constants
-void pC(uint64_t* x2, const uint64_t round_constant) {
-    *x2 ^= round_constant;
+void pC(uint8_t* S, const uint64_t round_constant) {
+    S[3*REG_SIZE-1] ^= round_constant;
 }
 
 // Hàm pS - Substitution Layer
-void pS(uint8_t *S) {
-    for (int i = 0; i < S_LEN; i++) {
-        S[i] = s_box[S[i]]; // Áp dụng S-box cho mỗi bit-slice
+void pS_lookup_table(uint8_t *S) {
+    int temp_array_size = 8 * S_LEN / 5;
+    uint8_t temp_array[temp_array_size];
+    int bit_position = 0;
+    for (size_t i = 0; i < temp_array_size; ++i) {
+        // Lấy 5 bit từ vị trí hiện tại
+        int byte_index = bit_position / 8;
+        int bit_offset = bit_position % 8;
+        uint8_t value;
+        
+        if (bit_offset <= 3) {
+            value = (S[byte_index] >> (3 - bit_offset)) & 0x1F;
+        } else {
+            value = ((S[byte_index] << (bit_offset - 3)) & 0x1F) | (S[byte_index + 1] >> (11 - bit_offset));
+        }
+        
+        // Áp dụng S-box
+        temp_array[i] = s_box[value];
+
+        
+        // Di chuyển đến 5 bit tiếp theo
+        bit_position += 5;
+    }
+
+    // Kết hợp lại thành các phần tử 8-bit trong output_array
+    for (size_t i = 0; i < S_LEN; ++i) {
+        S[i] = 0;
+        for (int bit = 0; bit < 8; ++bit) {
+            int total_bit_position = i * 8 + bit;
+            int temp_index = total_bit_position / 5;
+            int bit_in_temp = total_bit_position % 5;
+
+            S[i] |= ((temp_array[temp_index] >> (4 - bit_in_temp)) & 1) << (7 - bit);
+        }
     }
 }
 
@@ -96,11 +136,12 @@ void pL(uint8_t *S) {
 void permutation(uint8_t *S, const int num_rounds) {
     for (int i = 0; i < num_rounds; i++) {
         // Bước pC - thêm hằng số vòng vào từ x2
-        pC((uint64_t *)(S + 2 * REG_SIZE), round_constants[i]);
-        
+        //pC((uint64_t *)(S + 2 * REG_SIZE), round_constants[i]);
+        pC(S, round_constants[i]);
+
         // Bước pS - cập nhật trạng thái với S-box
-        pS(S);
-        
+        pS_lookup_table(S);
+
         // Bước pL - cung cấp sự phân tán tuyến tính cho mỗi từ xi
         pL(S);
     }
@@ -145,7 +186,7 @@ void process_associated_data(uint8_t *S, const uint8_t *A, int A_length, int num
 }
 
 // Hàm để tính độ dài của ciphertext
-size_t calculate_ciphertext_length(size_t plaintext_length, size_t block_size) {
+size_t calculate_text_length(size_t plaintext_length, size_t block_size) {
     size_t num_blocks = (plaintext_length + block_size - 1) / block_size;
     size_t last_block_length = plaintext_length % block_size;
     return (num_blocks - 1) * block_size + last_block_length;
@@ -157,7 +198,7 @@ void encrypt_plaintext(uint8_t *S, const uint8_t *P, size_t P_length, uint8_t *C
     size_t num_blocks = (P_length + block_size - 1) / block_size;
 
     // Khởi tạo biến lưu trữ độ dài của ciphertext
-    size_t ciphertext_length = calculate_ciphertext_length(P_length, block_size);
+    size_t C_length = calculate_text_length(P_length, block_size);
 
     // Xử lý từng khối dữ liệu
     for (size_t i = 0; i < num_blocks; i++) {
@@ -177,12 +218,6 @@ void encrypt_plaintext(uint8_t *S, const uint8_t *P, size_t P_length, uint8_t *C
         if(i < num_blocks - 1){
             permutation(S, num_rounds);
         }
-    }
-
-    // Truncate last ciphertext block if necessary
-    if (ciphertext_length > P_length) {
-        size_t last_block_length = P_length % block_size;
-        C[ciphertext_length] &= (0xFF >> (block_size - last_block_length));
     }
 }
 
@@ -216,3 +251,34 @@ int verify_tag(uint8_t *S, const uint8_t *Key, const uint8_t *received_tag, int 
     return memcmp(calculated_tag, received_tag, TAG_LEN) == 0;
 }
 
+//Hàm giải mã ciphertext thành plaintext
+void decrypt_ciphertext(uint8_t *S, uint8_t *C, size_t C_length, uint8_t *P, int num_rounds, int block_size) {
+    // Số lượng khối dữ liệu ciphertext
+    size_t num_blocks = (C_length + block_size - 1) / block_size;
+    
+    // Khởi tạo biến lưu trữ độ dài của plaintext
+    size_t P_length = calculate_text_length(C_length, block_size);
+
+    // Xử lý từng khối dữ liệu
+    for (size_t i = 0; i < num_blocks; i++) {
+        // Lấy khối dữ liệu thứ i từ C
+        const uint8_t *Ci = C + i * block_size;
+
+        // XOR khối dữ liệu Ci với r byte đầu của trạng thái S
+        size_t block_len = (i < num_blocks - 1) ? block_size : (P_length % block_size);
+        for (size_t j = 0; j < block_len; j++) {
+            P[j] = S[j] ^ Ci[j];
+            S[j] = Ci[j];
+        }
+
+        // Áp dụng hoán vị pb lên trạng thái S
+        if(i < num_blocks - 1){
+            permutation(S, num_rounds);
+        }
+    }
+}
+
+// void pC_1(uint64_t* x2, const uint64_t round_constant) {
+//     printf("%x \n", *x2);
+//     *x2 ^= round_constant;
+// }
