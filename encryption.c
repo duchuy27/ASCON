@@ -25,6 +25,7 @@ int main() {
     for (size_t i = 0; i < KEY_LEN; i++) {
         S[S_LEN - KEY_LEN + i] ^= Key[i];
     }
+    /////////
 
     //Processing Associated Data Ascon
     process_associated_data(S, associated_data, sizeof(associated_data), 6, 12);
