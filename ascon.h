@@ -100,24 +100,29 @@ void pS_lookup_table(uint8_t *S) {
     }
 }
 
+//
+uint64_t rotr(uint64_t val, int r){
+    return (val >> r) | ((val & (1ULL<<r)-1) << (64-r));
+}
+
 // Hàm tuyến tính cho diffusion layer
 uint64_t linear_function(uint64_t x, int i) {
     switch (i)
     {
     case 0:
-        return x ^ (x >> 19) ^ (x >> 28);
+        return x ^ rotr(x, 19) ^ rotr(x, 28);
         break;
     case 1:
-        return x ^ (x >> 61) ^ (x >> 39);
+        return x ^ rotr(x, 61) ^ rotr(x, 39);
         break;
     case 2:
-        return x ^ (x >> 1) ^ (x >> 6);
+        return x ^ rotr(x, 1) ^ rotr(x, 6);
         break;
     case 3:
-        return x ^ (x >> 10) ^ (x >> 17);
+        return x ^ rotr(x, 10) ^ rotr(x, 17);
         break;
     case 4:
-        return x ^ (x >> 7) ^ (x >> 41);
+        return x ^ rotr(x, 7) ^ rotr(x, 41);
         break;
     default:
         break;
