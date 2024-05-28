@@ -370,12 +370,12 @@ def ascon_permutation(S, rounds=1):
         # --- add round constants ---
         print("round %d" % r)
         S[2] ^= (0xf0 - r*0x10 + r*0x1)
-        printwords(S, "round constant addition:")
+        if debugpermutation: printwords(S, "round constant addition:")
         # --- substitution layer ---
         S[0] ^= S[4]
         S[4] ^= S[3]
         S[2] ^= S[1]
-        print(S)
+        
         T = [(S[i] ^ 0xFFFFFFFFFFFFFFFF) & S[(i+1)%5] for i in range(5)]
         for i in range(5):
             S[i] ^= T[(i+1)%5]
@@ -383,14 +383,16 @@ def ascon_permutation(S, rounds=1):
         S[0] ^= S[4]
         S[3] ^= S[2]
         S[2] ^= 0XFFFFFFFFFFFFFFFF
-        printwords(S, "substitution layer:")
+        if debugpermutation: printwords(S, "substitution layer:")
         # --- linear diffusion layer ---
+        S[0] = rotr(S[0],19)
+        printwords(S, "linear diffusion layer:")
         S[0] ^= rotr(S[0], 19) ^ rotr(S[0], 28)
         S[1] ^= rotr(S[1], 61) ^ rotr(S[1], 39)
         S[2] ^= rotr(S[2],  1) ^ rotr(S[2],  6)
         S[3] ^= rotr(S[3], 10) ^ rotr(S[3], 17)
         S[4] ^= rotr(S[4],  7) ^ rotr(S[4], 41)
-        if debugpermutation: printwords(S, "linear diffusion layer:")
+        printwords(S, "linear diffusion layer:")
 
 
 # === helper functions ===

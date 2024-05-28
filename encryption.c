@@ -18,11 +18,11 @@ int main() {
 
     // Tạo S từ IV, Key, và Nonce
     Init_S(S, IV, Key, Nonce);
-    printf("initial value: \t");
-    print_HEX(S, S_LEN);
+    // printf("initial value: \t");
+    // print_HEX(S, S_LEN);
     permutation(S, 12);
-    printf("initialization: \t");
-    print_HEX(S, S_LEN);
+    // printf("initialization: \t");
+    // print_HEX(S, S_LEN);
 
     // for (size_t i = 0; i < KEY_LEN; i++) {
     //     S[S_LEN - KEY_LEN + i] ^= Key[i];

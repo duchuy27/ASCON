@@ -106,14 +106,11 @@ void pS(uint8_t *S) {
     uint64_t *x1 = (uint64_t *)(S + 1 * REG_SIZE);
     uint64_t *x2 = (uint64_t *)(S + 2 * REG_SIZE);
     uint64_t *x3 = (uint64_t *)(S + 3 * REG_SIZE);
-    uint16_t *x4 = (uint16_t *)(S + 4 * REG_SIZE);
+    uint64_t *x4 = (uint64_t *)(S + 4 * REG_SIZE);
 
     *x0 ^= *x4;
     *x4 ^= *x3;
     *x2 ^= *x1;
-
-    printf("AAAAAA:");
-    print_HEX(S, S_LEN);
     
     uint64_t T[5];
     T[0] = ((*x0 ^ 0xFFFFFFFFFFFFFFFFULL) & *x1);
@@ -134,60 +131,55 @@ void pS(uint8_t *S) {
     *x2 ^= 0xFFFFFFFFFFFFFFFFULL;
 }
 
-uint64_t rotr(uint64_t val, int r){
-    return (val >> r) | ((val & (1ULL<<r)-1) << (64-r));
-}
-
-// Hàm tuyến tính cho diffusion layer
-uint64_t linear_function(uint64_t x, int i) {
-    switch (i)
-    {
-    case 0:
-        return x ^ rotr(x, 19) ^ rotr(x, 28);
-        break;
-    case 1:
-        return x ^ rotr(x, 61) ^ rotr(x, 39);
-        break;
-    case 2:
-        return x ^ rotr(x, 1) ^ rotr(x, 6);
-        break;
-    case 3:
-        return x ^ rotr(x, 10) ^ rotr(x, 17);
-        break;
-    case 4:
-        return x ^ rotr(x, 7) ^ rotr(x, 41);
-        break;
-    default:
-        break;
-    }
+uint64_t rotr(uint64_t val, int r) {
+    return (val >> r) | ((val & ((1ULL << r) - 1)) << (64 - r));
 }
 
 // Hàm pL - Linear Diffusion Layer
 void pL(uint8_t *S) {
-    for (int i = 0; i < 5; i++) {
-        uint64_t *xi = (uint64_t *)(S + i * REG_SIZE); // Lấy địa chỉ của từ xi
-        *xi = linear_function(*xi, i); // Áp dụng hàm tuyến tính cho từ xi
-    }
+    uint64_t temp;
+    uint64_t *x0 = (uint64_t *)(S + 0 * REG_SIZE);
+    uint64_t *x1 = (uint64_t *)(S + 1 * REG_SIZE);
+    uint64_t *x2 = (uint64_t *)(S + 2 * REG_SIZE);
+    uint64_t *x3 = (uint64_t *)(S + 3 * REG_SIZE);
+    uint64_t *x4 = (uint64_t *)(S + 4 * REG_SIZE);
+    // temp = rotr(*x0, 19);
+    // print_HEX(temp, REG_SIZE);
+
+    // temp = *x0;
+    // *x0 ^= rotr(temp, 19) ^ rotr(temp, 28);
+    // temp = *x1;
+    // *x1 ^= rotr(temp, 61) ^ rotr(temp, 39);
+    // temp = *x2;
+    // *x2 ^= rotr(temp,  1) ^ rotr(temp,  6);
+    // temp = *x3;
+    // *x3 ^= rotr(temp, 10) ^ rotr(temp, 17);
+    // temp = *x4;
+    // *x4 ^= rotr(temp,  7) ^ rotr(temp, 41);
+    *x0 = rotr(*x0, 19);
+    printf("Result: 0x%016llx\n", *x0);
 }
 
 // Hàm hoán vị permutation
 void permutation(uint8_t *S, const int num_rounds) {
     for (int i = 0; i < num_rounds; i++) {
-        printf("vong %d: \n", i);
+        printf("vong %d:", i);
         // Bước pC - thêm hằng số vòng vào từ x2
         //pC((uint64_t *)(S + 2 * REG_SIZE), round_constants[i]);
         pC(S, round_constants[i]);
-        printf("round constant addition: \n");
-        print_HEX(S, S_LEN);
+        // printf("round constant addition:");
+        // print_HEX(S, S_LEN);
 
         // Bước pS - cập nhật trạng thái với S-box
         //pS_lookup_table(S);
         pS(S);
-        printf("substitution layer: \n");
-        print_HEX(S, S_LEN);
+        // printf("substitution layer:");
+        // print_HEX(S, S_LEN);
 
         // Bước pL - cung cấp sự phân tán tuyến tính cho mỗi từ xi
         pL(S);
+        // printf("linear diffusion layer:");
+        // print_HEX(S, S_LEN);
     }
 }
 
