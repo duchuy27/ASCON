@@ -15,7 +15,7 @@ const uint8_t s_box[32] = {0x4, 0xb, 0x1f, 0x14, 0x1a, 0x15, 0x9, 0x2, 0x1b, 0x5
 void print_HEX(const uint8_t vari[], int len){
     for (int i = 0; i < len; i++) {
         if(i%8 == 0){
-            printf("\t");
+            printf("\n");
         }
         printf("%02x", vari[i]); // In ra mỗi byte của IV dưới dạng HEX
     }
@@ -24,14 +24,14 @@ void print_HEX(const uint8_t vari[], int len){
 
 void Init_IV(uint8_t *IV, uint8_t k, uint8_t r, uint8_t a, uint8_t b) {
     // Create a IV with k, r, a and b
-    if (k == 128 && r == 12 && a == 8 && b == 6) {
+    if (k == 128 && r == 64 && a == 12 && b == 6) {
         // IV for Ascon-128
         memset(IV, 0x00, IV_LEN);
         IV[0] = 0x80;
         IV[1] = 0x40;
         IV[2] = 0x0c;
         IV[3] = 0x06;
-    } else if (k == 128 && r == 12 && a == 8 && b == 8) {
+    } else if (k == 128 && r == 128 && a == 12 && b == 8) {
         // IV for Ascon-128a
         memset(IV, 0x00, IV_LEN);
         IV[0] = 0x80;
@@ -60,6 +60,7 @@ void Init_S(uint8_t *S, uint8_t *IV, const uint8_t *Key, const uint8_t *Nonce) {
 // Hàm pC - Addition of Constants
 void pC(uint8_t* S, const uint64_t round_constant) {
     S[3*REG_SIZE-1] ^= round_constant;
+    // print_HEX(S, S_LEN);
 }
 
 // Hàm pS - Substitution Layer
@@ -100,7 +101,39 @@ void pS_lookup_table(uint8_t *S) {
     }
 }
 
-//
+void pS(uint8_t *S) {
+    uint64_t *x0 = (uint64_t *)(S + 0 * REG_SIZE);
+    uint64_t *x1 = (uint64_t *)(S + 1 * REG_SIZE);
+    uint64_t *x2 = (uint64_t *)(S + 2 * REG_SIZE);
+    uint64_t *x3 = (uint64_t *)(S + 3 * REG_SIZE);
+    uint16_t *x4 = (uint16_t *)(S + 4 * REG_SIZE);
+
+    *x0 ^= *x4;
+    *x4 ^= *x3;
+    *x2 ^= *x1;
+
+    printf("AAAAAA:");
+    print_HEX(S, S_LEN);
+    
+    uint64_t T[5];
+    T[0] = ((*x0 ^ 0xFFFFFFFFFFFFFFFFULL) & *x1);
+    T[1] = ((*x1 ^ 0xFFFFFFFFFFFFFFFFULL) & *x2);
+    T[2] = ((*x2 ^ 0xFFFFFFFFFFFFFFFFULL) & *x3);
+    T[3] = ((*x3 ^ 0xFFFFFFFFFFFFFFFFULL) & *x4);
+    T[4] = ((*x4 ^ 0xFFFFFFFFFFFFFFFFULL) & *x0);
+
+    *x0 ^= T[1];
+    *x1 ^= T[2];
+    *x2 ^= T[3];
+    *x3 ^= T[4];
+    *x4 ^= T[0];
+    
+    *x1 ^= *x0;
+    *x0 ^= *x4;
+    *x3 ^= *x2;
+    *x2 ^= 0xFFFFFFFFFFFFFFFFULL;
+}
+
 uint64_t rotr(uint64_t val, int r){
     return (val >> r) | ((val & (1ULL<<r)-1) << (64-r));
 }
@@ -140,12 +173,18 @@ void pL(uint8_t *S) {
 // Hàm hoán vị permutation
 void permutation(uint8_t *S, const int num_rounds) {
     for (int i = 0; i < num_rounds; i++) {
+        printf("vong %d: \n", i);
         // Bước pC - thêm hằng số vòng vào từ x2
         //pC((uint64_t *)(S + 2 * REG_SIZE), round_constants[i]);
         pC(S, round_constants[i]);
+        printf("round constant addition: \n");
+        print_HEX(S, S_LEN);
 
         // Bước pS - cập nhật trạng thái với S-box
-        pS_lookup_table(S);
+        //pS_lookup_table(S);
+        pS(S);
+        printf("substitution layer: \n");
+        print_HEX(S, S_LEN);
 
         // Bước pL - cung cấp sự phân tán tuyến tính cho mỗi từ xi
         pL(S);
