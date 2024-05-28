@@ -441,12 +441,17 @@ def demo_aead(variant):
     print("=== demo encryption using {variant} ===".format(variant=variant))
 
     # choose a cryptographically strong random key and a nonce that never repeats for the same key:
-    key   = b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x00\x01\x02\x03\x04\x05\x06"
-    nonce = b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x00\x01\x02\x03\x04\x05\x06"
+    #key   = b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x00\x01\x02\x03\x04\x05\x06"
+    #nonce = b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x00\x01\x02\x03\x04\x05\x06"
     
-    associateddata = b"ASCON"
-    plaintext      = b"ascon"
+    key = b"\xea\xa9\x11\x9a\xa3\xa9\xbd^P\xbc\xcd\xa4\xe1=\x1c\x03"
+    nonce = b"\x1ae'\xa3fE\xdd\xb9I\x06q\xdc]\x1e\x1e\xbb"
+    
+    # associateddata = b"ASCON"
+    # plaintext      = b"ascon"
 
+    associateddata = b"just having fun"
+    plaintext      = b"ASCON"
     ciphertext        = ascon_encrypt(key, nonce, associateddata, plaintext,  variant)
     receivedplaintext = ascon_decrypt(key, nonce, associateddata, ciphertext, variant)
 
