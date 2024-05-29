@@ -155,10 +155,10 @@ def ascon_encrypt(key, nonce, associateddata, plaintext, variant="Ascon-128"):
     rate = 16 if variant == "Ascon-128a" else 8   # bytes
 
     ascon_initialize(S, k, rate, a, b, key, nonce)
-    # ascon_process_associated_data(S, b, rate, associateddata)
-    # ciphertext = ascon_process_plaintext(S, b, rate, plaintext)
-    # tag = ascon_finalize(S, rate, a, key)
-    # return ciphertext + tag
+    ascon_process_associated_data(S, b, rate, associateddata)
+    ciphertext = ascon_process_plaintext(S, b, rate, plaintext)
+    tag = ascon_finalize(S, rate, a, key)
+    return ciphertext + tag
 
 
 def ascon_decrypt(key, nonce, associateddata, ciphertext, variant="Ascon-128"):
@@ -368,7 +368,6 @@ def ascon_permutation(S, rounds=1):
     if debugpermutation: printwords(S, "permutation input:")
     for r in range(12-rounds, 12):
         # --- add round constants ---
-        print("round %d" % r)
         S[2] ^= (0xf0 - r*0x10 + r*0x1)
         if debugpermutation: printwords(S, "round constant addition:")
         # --- substitution layer ---
@@ -386,13 +385,12 @@ def ascon_permutation(S, rounds=1):
         if debugpermutation: printwords(S, "substitution layer:")
         # --- linear diffusion layer ---
         S[0] = rotr(S[0],19)
-        printwords(S, "linear diffusion layer:")
         S[0] ^= rotr(S[0], 19) ^ rotr(S[0], 28)
         S[1] ^= rotr(S[1], 61) ^ rotr(S[1], 39)
         S[2] ^= rotr(S[2],  1) ^ rotr(S[2],  6)
         S[3] ^= rotr(S[3], 10) ^ rotr(S[3], 17)
         S[4] ^= rotr(S[4],  7) ^ rotr(S[4], 41)
-        printwords(S, "linear diffusion layer:")
+        if debugpermutation: printwords(S, "linear diffusion layer:")
 
 
 # === helper functions ===
@@ -448,22 +446,22 @@ def demo_aead(variant):
     key   = b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x00\x01\x02\x03\x04\x05\x06"
     nonce = b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x00\x01\x02\x03\x04\x05\x06"
     
-    associateddata = b"ASCON"
-    plaintext      = b"ascon"
+    associateddata = b"ASCON\0"
+    plaintext      = b"ascon\0"
 
     ciphertext        = ascon_encrypt(key, nonce, associateddata, plaintext,  variant)
-    # receivedplaintext = ascon_decrypt(key, nonce, associateddata, ciphertext, variant)
+    receivedplaintext = ascon_decrypt(key, nonce, associateddata, ciphertext, variant)
 
-    # if receivedplaintext == None: print("verification failed!")
+    if receivedplaintext == None: print("verification failed!")
         
-    # demo_print([("key", key), 
-    #             ("nonce", nonce), 
-    #             ("plaintext", plaintext), 
-    #             ("ass.data", associateddata), 
-    #             ("ciphertext", ciphertext[:-16]), 
-    #             ("tag", ciphertext[-16:]), 
-    #             ("received", receivedplaintext), 
-    #            ])
+    demo_print([("key", key), 
+                ("nonce", nonce), 
+                ("plaintext", plaintext), 
+                ("ass.data", associateddata), 
+                ("ciphertext", ciphertext[:-16]), 
+                ("tag", ciphertext[-16:]), 
+                ("received", receivedplaintext), 
+               ])
 
 def demo_hash(variant="Ascon-Hash", hashlength=32):
     assert variant in ["Ascon-Xof", "Ascon-Hash", "Ascon-Xofa", "Ascon-Hasha"]
@@ -488,5 +486,5 @@ def demo_mac(variant="Ascon-Mac", taglength=16):
 
 if __name__ == "__main__":
     demo_aead("Ascon-128")
-    # demo_hash("Ascon-Hash")
-    # demo_mac("Ascon-Mac")
+    demo_hash("Ascon-Hash")
+    demo_mac("Ascon-Mac")
