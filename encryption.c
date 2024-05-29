@@ -6,18 +6,13 @@
 const uint8_t Key[KEY_LEN] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6};
 const uint8_t Nonce[NONCE_LEN] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6};
 const char Associated_data[] = "ASCON";
-const char plain_data[] = "ascon";
+const char plain_data[] = "Hello, Huy";
 
 int main() {
     //Initialization
-    uint8_t IV[IV_LEN];
     uint8_t S[S_LEN];
 
     //******************************MÃ HÓA******************************
-
-    // Tạo IV dựa trên thông số k, r, a, và b cho Ascon-128
-    Init_IV(IV, K, RATE*8, A, B);
-
     // Tạo S từ IV, Key, và Nonce
     Init_S(S, IV, Key, Nonce);
     permutation(S, A);
@@ -38,7 +33,6 @@ int main() {
     Init_tag(S, Key, Tag);
 
     //******************************GIẢI MÃ******************************
-
     // Tạo lại S từ IV, Key, và Nonce
     Init_S(S, IV, Key, Nonce);
     permutation(S, A);
@@ -52,7 +46,7 @@ int main() {
 
     //Processing Ciphertext Ascon
     uint8_t P[sizeof(C)];
-    decrypt_ciphertext(S, C, sizeof(C), P, B, 12);
+    decrypt_ciphertext(S, C, sizeof(C), P);
 
     //Finalization
     uint8_t Tag_received[TAG_LEN];
