@@ -7,19 +7,38 @@
 #define REG_SIZE 8U             // Size of Register is 64 bits (8 bytes) (320/5 = 64 bits)
 #define TAG_LEN 16U
 
+#define K 128
+#define RATE 8
+#define A 12
+#define B 6
+
 const uint8_t round_constants[12] = {0xf0, 0xe1, 0xd2, 0xc3, 0xb4, 0xa5, 0x96, 0x87, 0x78, 0x69, 0x5a, 0x4b};
 const uint8_t s_box[32] = {0x4, 0xb, 0x1f, 0x14, 0x1a, 0x15, 0x9, 0x2, 0x1b, 0x5, 0x8, 0x12, 0x1d, 0x3, 0x6, 0x1c,
                             0x1e, 0x13, 0x7, 0xe, 0x0, 0xd, 0x11, 0x18, 0x10, 0xc, 0x1, 0x19, 0x16, 0xa, 0xf, 0x17};
 
 //In giá trị ra
-void print_HEX(const uint8_t vari[], int len){
+void print_HEX(const char *label, const uint8_t vari[], int len){
+    printf("%s: \t", label);
     for (int i = 0; i < len; i++) {
         if(i%8 == 0){
-            printf("\n");
+            printf("\t");
         }
         printf("%02x", vari[i]); // In ra mỗi byte của IV dưới dạng HEX
     }
     printf("\n");
+}
+
+// Hàm đảo ngược byte của một giá trị uint64_t
+uint64_t reverse_bytes(uint64_t val) {
+    val = ((val & 0x00000000000000FFULL) << 56) |
+          ((val & 0x000000000000FF00ULL) << 40) |
+          ((val & 0x0000000000FF0000ULL) << 24) |
+          ((val & 0x00000000FF000000ULL) << 8)  |
+          ((val & 0x000000FF00000000ULL) >> 8)  |
+          ((val & 0x0000FF0000000000ULL) >> 24) |
+          ((val & 0x00FF000000000000ULL) >> 40) |
+          ((val & 0xFF00000000000000ULL) >> 56);
+    return val;
 }
 
 void Init_IV(uint8_t *IV, uint8_t k, uint8_t r, uint8_t a, uint8_t b) {
@@ -132,40 +151,43 @@ void pS(uint8_t *S) {
 }
 
 uint64_t rotr(uint64_t val, int r) {
-    return (val >> r) | ((val & ((1ULL << r) - 1)) << (64 - r));
+    return (val >> r) | (val << (64 - r));
 }
 
 // Hàm pL - Linear Diffusion Layer
 void pL(uint8_t *S) {
-    uint64_t temp;
+
     uint64_t *x0 = (uint64_t *)(S + 0 * REG_SIZE);
     uint64_t *x1 = (uint64_t *)(S + 1 * REG_SIZE);
     uint64_t *x2 = (uint64_t *)(S + 2 * REG_SIZE);
     uint64_t *x3 = (uint64_t *)(S + 3 * REG_SIZE);
     uint64_t *x4 = (uint64_t *)(S + 4 * REG_SIZE);
-    // temp = rotr(*x0, 19);
-    // print_HEX(temp, REG_SIZE);
 
-    // temp = *x0;
-    // *x0 ^= rotr(temp, 19) ^ rotr(temp, 28);
-    // temp = *x1;
-    // *x1 ^= rotr(temp, 61) ^ rotr(temp, 39);
-    // temp = *x2;
-    // *x2 ^= rotr(temp,  1) ^ rotr(temp,  6);
-    // temp = *x3;
-    // *x3 ^= rotr(temp, 10) ^ rotr(temp, 17);
-    // temp = *x4;
-    // *x4 ^= rotr(temp,  7) ^ rotr(temp, 41);
-    *x0 = rotr(*x0, 19);
-    printf("Result: 0x%016llx\n", *x0);
+    //Đảo lại để dịch bits
+    *x0 = reverse_bytes(*x0);
+    *x1 = reverse_bytes(*x1);
+    *x2 = reverse_bytes(*x2);
+    *x3 = reverse_bytes(*x3);
+    *x4 = reverse_bytes(*x4);
+
+    *x0 ^= rotr(*x0, 19) ^ rotr(*x0, 28);
+    *x1 ^= rotr(*x1, 61) ^ rotr(*x1, 39);
+    *x2 ^= rotr(*x2, 1) ^ rotr(*x2, 6);
+    *x3 ^= rotr(*x3, 10) ^ rotr(*x3, 17);
+    *x4 ^= rotr(*x4, 7) ^ rotr(*x4, 41);
+
+    //Đảo lại để đúng thứ tự
+    *x0 = reverse_bytes(*x0);
+    *x1 = reverse_bytes(*x1);
+    *x2 = reverse_bytes(*x2);
+    *x3 = reverse_bytes(*x3);
+    *x4 = reverse_bytes(*x4);
 }
 
 // Hàm hoán vị permutation
 void permutation(uint8_t *S, const int num_rounds) {
-    for (int i = 0; i < num_rounds; i++) {
-        printf("vong %d:", i);
+    for (int i = 12 - num_rounds; i < 12; i++) {
         // Bước pC - thêm hằng số vòng vào từ x2
-        //pC((uint64_t *)(S + 2 * REG_SIZE), round_constants[i]);
         pC(S, round_constants[i]);
         // printf("round constant addition:");
         // print_HEX(S, S_LEN);
@@ -183,42 +205,39 @@ void permutation(uint8_t *S, const int num_rounds) {
     }
 }
 
-// Hàm để thêm phần đuôi cho dữ liệu kết nối A
-void pad_associated_data(const uint8_t *A, int A_length, uint8_t *padded_A, int block_size) {
-    int padding_length = block_size - (A_length % block_size);
-    memcpy(padded_A, A, A_length); // Sao chép dữ liệu gốc vào padded_A
-    padded_A[A_length] = 0x80; // Gắn bit 1 vào vị trí kế cuối của dữ liệu gốc
-    memset(padded_A + A_length + 1, 0, padding_length - 1); // Đặt các bit còn lại thành 0
+// Hàm chuyển đổi bytes thành số nguyên
+uint64_t bytes_to_int(const uint8_t *bytes) {
+    return ((uint64_t)bytes[0] << 56) |
+           ((uint64_t)bytes[1] << 48) |
+           ((uint64_t)bytes[2] << 40) |
+           ((uint64_t)bytes[3] << 32) |
+           ((uint64_t)bytes[4] << 24) |
+           ((uint64_t)bytes[5] << 16) |
+           ((uint64_t)bytes[6] << 8)  |
+           ((uint64_t)bytes[7]);
 }
 
-// Hàm xử lý dữ liệu kết nối
-void process_associated_data(uint8_t *S, const uint8_t *A, int A_length, int num_rounds, int block_size) {
-    
-    int Padded_A_LEN = (A_length + (block_size - (A_length % block_size)));
-    uint8_t padded_A[Padded_A_LEN];
-
-    if(A_length > 0){
-        pad_associated_data(A, A_length, padded_A, block_size);
-    }
-    
-    int num_blocks = (A_length > 0) ? (A_length + block_size - 1) / block_size : 0;
-    
-    // Xử lý từng khối dữ liệu
-    for (size_t i = 0; i < num_blocks; i++) {
-        // Lấy khối dữ liệu thứ i từ padded_A
-        const uint8_t *Ai = (A_length > 0) ? (padded_A + i * block_size) : NULL;
-
-        // XOR khối dữ liệu Ai với r byte đầu của trạng thái S
-        for (int j = 0; j < block_size; j++) {
-            S[j] ^= Ai[j];
+// Hàm xử lý dữ liệu liên kết
+void process_associated_data(uint8_t *S, const uint8_t *Associated_data, int A_LEN) {
+    if (A_LEN > 0) {
+        // thêm 1|0(63 bits) vào associated_data cho đủ bội số của 8
+        int PADDED_LEN = A_LEN + (RATE - (A_LEN % RATE));
+        uint8_t padded[PADDED_LEN];
+        for (int i = 0; i < PADDED_LEN; i++) {
+            padded[i] = 0;
         }
+        memcpy(padded, Associated_data, A_LEN);
+        padded[A_LEN] = 0x80;
 
-        // Áp dụng hoán vị pb lên trạng thái S
-        permutation(S, num_rounds);
+        for (int i = 0; i < PADDED_LEN; i += RATE){
+            for (int j = 0; j < RATE; j++){
+                 S[j] ^= padded[j + i];
+            }
+            permutation(S, B);
+        }
+        
+        S[39] ^= 0x01;
     }
-    
-    // XOR với hằng số domain separation
-    S[S_LEN - 1] ^= 0x01; // Bit 0 đặc biệt domain separation
 }
 
 // Hàm để tính độ dài của ciphertext
@@ -229,89 +248,100 @@ size_t calculate_text_length(size_t plaintext_length, size_t block_size) {
 }
 
 // Hàm mã hóa plaintext thành ciphertext
-void encrypt_plaintext(uint8_t *S, const uint8_t *P, size_t P_length, uint8_t *C, int num_rounds, int block_size) {
-    // Số lượng khối dữ liệu plaintext
-    size_t num_blocks = (P_length + block_size - 1) / block_size;
-
-    // Khởi tạo biến lưu trữ độ dài của ciphertext
-    size_t C_length = calculate_text_length(P_length, block_size);
-
-    // Xử lý từng khối dữ liệu
-    for (size_t i = 0; i < num_blocks; i++) {
-        // Lấy khối dữ liệu thứ i từ P
-        const uint8_t *Pi = P + i * block_size;
-
-        // XOR khối dữ liệu Pi với r byte đầu của trạng thái S
-        size_t block_len = (i < num_blocks - 1) ? block_size : (P_length % block_size);
-        for (size_t j = 0; j < block_len; j++) {
-            S[j] ^= Pi[j];
-        }
-
-        // Lấy r-bit đầu tiên của trạng thái S để tạo thành ciphertext
-        memcpy(C + i * block_size, S, block_size);
-
-        // Áp dụng hoán vị pb lên trạng thái S
-        if(i < num_blocks - 1){
-            permutation(S, num_rounds);
-        }
+void encrypt_plaintext(uint8_t *S, const uint8_t *Plain_data, size_t P_LEN, uint8_t *C) {
+    
+    int P_LAST_LEN = P_LEN % RATE;
+    int PADDED_LEN = P_LEN + (RATE - P_LAST_LEN);
+    uint8_t padded[PADDED_LEN];
+    for (int i = 0; i < PADDED_LEN; i++) {
+        padded[i] = 0;
     }
+    memcpy(padded, Plain_data, P_LEN);
+    padded[P_LEN] = 0x80;
+    
+    //block 1 đến t-1
+    for (int i = 0; i < PADDED_LEN - RATE; i += RATE){
+        for (int j = 0; j < RATE; j++){
+            S[j] ^= padded[j + i];
+        }
+        memcpy(C + i * RATE, S, RATE);
+        permutation(S, B);
+    }
+
+    //block cuối
+    for (int i = 0; i < RATE; i++){
+        S[i] ^= padded[i + (PADDED_LEN - RATE)];
+    }
+    memcpy(C + (PADDED_LEN - RATE), S, P_LAST_LEN);
 }
 
 // Hàm để tạo tag cho plaintext và key đã mã hóa
-void Init_tag(uint8_t *S, const uint8_t *Key, uint8_t *tag, int num_rounds, int r) {
+void Init_tag(uint8_t *S, const uint8_t *Key, uint8_t *tag) {
     // XOR internal state với key 0^r||K||0^(360-r-k)
-    for (size_t i = r; i < (KEY_LEN + r); i++) {
-        S[i] ^= Key[i];
+    for (size_t i = RATE; i < (KEY_LEN + RATE); i++) {
+        S[i] ^= Key[i - RATE];
     }
 
     // Áp dụng hoán vị pa lên trạng thái S
-    permutation(S, num_rounds);
+    permutation(S, A);
+    
 
     //XOR S and Key
     for (size_t i = S_LEN - TAG_LEN; i < S_LEN; i++) {
-        S[i] ^= Key[i];
+        S[i] ^= Key[i - (S_LEN - TAG_LEN)];
     }
-
     // Sao chép 128 bits cuối cùng của trạng thái S vào tag
     memcpy(tag, S + S_LEN - TAG_LEN, TAG_LEN);
 }
 
-// Hàm để xác minh tag của plaintext đã mã hóa
-int verify_tag(uint8_t *S, const uint8_t *Key, const uint8_t *received_tag, int num_rounds, int r) {
-    uint8_t calculated_tag[TAG_LEN];
-
-    // Tạo tag từ trạng thái S và key K
-    Init_tag(S, Key, calculated_tag, num_rounds, r);
-
-    // So sánh calculated_tag với received_tag
-    return memcmp(calculated_tag, received_tag, TAG_LEN) == 0;
-}
-
 //Hàm giải mã ciphertext thành plaintext
-void decrypt_ciphertext(uint8_t *S, uint8_t *C, size_t C_length, uint8_t *P, int num_rounds, int block_size) {
-    // Số lượng khối dữ liệu ciphertext
-    size_t num_blocks = (C_length + block_size - 1) / block_size;
+void decrypt_ciphertext(uint8_t *S, uint8_t *Cipher_data, size_t C_LEN, uint8_t *P, int num_rounds, int block_size) {
     
-    // Khởi tạo biến lưu trữ độ dài của plaintext
-    size_t P_length = calculate_text_length(C_length, block_size);
-
-    // Xử lý từng khối dữ liệu
-    for (size_t i = 0; i < num_blocks; i++) {
-        // Lấy khối dữ liệu thứ i từ C
-        const uint8_t *Ci = C + i * block_size;
-
-        // XOR khối dữ liệu Ci với r byte đầu của trạng thái S
-        size_t block_len = (i < num_blocks - 1) ? block_size : (P_length % block_size);
-        for (size_t j = 0; j < block_len; j++) {
-            P[j] = S[j] ^ Ci[j];
-            S[j] = Ci[j];
-        }
-
-        // Áp dụng hoán vị pb lên trạng thái S
-        if(i < num_blocks - 1){
-            permutation(S, num_rounds);
-        }
+    int C_LAST_LEN = C_LEN % RATE;
+    int PADDED_LEN = C_LEN + (RATE - C_LAST_LEN);
+    uint8_t padded[PADDED_LEN];
+    for (int i = 0; i < PADDED_LEN; i++) {
+        padded[i] = 0;
     }
+    memcpy(padded, Cipher_data, C_LEN);
+
+    //block 1 đến t-1
+    for (int i = 0; i < PADDED_LEN - RATE; i += RATE){
+        for (int j = 0; j < RATE; j++){
+            P[j + i] = S[j] ^ padded[j + i];
+            S[j] = padded[j + i];
+        }
+        permutation(S, B);
+    }
+
+    //block cuối
+    for (int i = 0; i < C_LAST_LEN; i++){
+        P[i]
+    }
+    
+    // //Số lượng khối dữ liệu ciphertext
+    // size_t num_blocks = (C_length + RATE - 1) / RATE;
+    
+    // // Khởi tạo biến lưu trữ độ dài của plaintext
+    // size_t P_length = calculate_text_length(C_length, RATE);
+
+    // // Xử lý từng khối dữ liệu
+    // for (size_t i = 0; i < num_blocks; i++) {
+    //     // Lấy khối dữ liệu thứ i từ C
+    //     const uint8_t *Ci = C + i * RATE;
+
+    //     // XOR khối dữ liệu Ci với r byte đầu của trạng thái S
+    //     size_t block_len = (i < num_blocks - 1) ? RATE : (P_length % block_size);
+    //     for (size_t j = 0; j < block_len; j++) {
+    //         P[j] = S[j] ^ Ci[j];
+    //         S[j] = Ci[j];
+    //     }
+
+    //     // Áp dụng hoán vị pb lên trạng thái S
+    //     if(i < num_blocks - 1){
+    //         permutation(S, num_rounds);
+    //     }
+    // }
 }
 
 // void pC_1(uint64_t* x2, const uint64_t round_constant) {

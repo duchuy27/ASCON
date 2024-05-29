@@ -13,75 +13,64 @@ int main() {
     uint8_t IV[IV_LEN];
     uint8_t S[S_LEN];
 
+    //******************************MÃ HÓA******************************
+
     // Tạo IV dựa trên thông số k, r, a, và b cho Ascon-128
-    Init_IV(IV, 128, 64, 12, 6);
+    Init_IV(IV, K, RATE*8, A, B);
 
     // Tạo S từ IV, Key, và Nonce
     Init_S(S, IV, Key, Nonce);
-    // printf("initial value: \t");
-    // print_HEX(S, S_LEN);
-    permutation(S, 12);
-    // printf("initialization: \t");
-    // print_HEX(S, S_LEN);
+    permutation(S, A);
 
-    // for (size_t i = 0; i < KEY_LEN; i++) {
-    //     S[S_LEN - KEY_LEN + i] ^= Key[i];
-    // }
+    for (size_t i = 0; i < KEY_LEN; i++) {
+        S[S_LEN - KEY_LEN + i] ^= Key[i];
+    }
 
-    // //Processing Associated Data Ascon
-    // process_associated_data(S, Associated_data, sizeof(Associated_data), 6, 12);
+    //Processing Associated Data Ascon với rate = 8(64/8) và b = 6 
+    process_associated_data(S, Associated_data, sizeof(Associated_data));
 
-    // //Processing Plaintext Ascon
-    // size_t ciphertext_length = calculate_text_length(sizeof(plain_data), 12);
-    // uint8_t C[ciphertext_length];
-    // encrypt_plaintext(S, plain_data, sizeof(plain_data), C, 6, 12);
+    //Processing Plaintext Ascon
+    uint8_t C[sizeof(plain_data)];
+    encrypt_plaintext(S, plain_data, sizeof(plain_data), C);
     
-    // //Finalization
-    // uint8_t calculated_tag[TAG_LEN];
-    // Init_tag(S, Key, calculated_tag, 12, 12);
-    // //******************************************************
+    //Finalization
+    uint8_t Tag[TAG_LEN];
+    Init_tag(S, Key, Tag);
 
-    // // Tạo lại S từ IV, Key, và Nonce
-    // Init_S(S, IV, Key, Nonce);
-    // permutation(S, 12);
+    //******************************GIẢI MÃ******************************
 
-    // for (size_t i = 0; i < KEY_LEN; i++) {
-    //     S[S_LEN - KEY_LEN + i] ^= Key[i];
-    // }
+    // Tạo lại S từ IV, Key, và Nonce
+    Init_S(S, IV, Key, Nonce);
+    permutation(S, A);
 
-    // //Processing Associated Data Ascon
-    // process_associated_data(S, Associated_data, sizeof(Associated_data), 6, 12);
+    for (size_t i = 0; i < KEY_LEN; i++) {
+        S[S_LEN - KEY_LEN + i] ^= Key[i];
+    }
 
-    // //Processing Ciphertext Ascon
-    // size_t plaintext_length = calculate_text_length(sizeof(plain_data), 12);
-    // uint8_t P[plaintext_length];
-    // decrypt_ciphertext(S, C, sizeof(C), P, 6, 12);
+    //Processing Associated Data Ascon
+    process_associated_data(S, Associated_data, sizeof(Associated_data));
 
-    // //Finalization
-    // uint8_t calculated_tag_new[TAG_LEN];
-    // Init_tag(S, Key, calculated_tag_new, 12, 12);
-    // //*******************************************************
-    // // if(memcmp(calculated_tag, calculated_tag_new, TAG_LEN) == 0){
-    // //     printf("Tag is correct!\n");
-    // // } else {
-    // //     printf("Tag is incorrect!\n");
-    // // }
+    //Processing Ciphertext Ascon
+    uint8_t P[sizeof(C)];
+    decrypt_ciphertext(S, C, sizeof(C), P, B, 12);
 
-    
-    // printf("Key: \t");
-    // print_HEX(Key, KEY_LEN);
-    // printf("Nonce: \t");
-    // print_HEX(Nonce, NONCE_LEN);
-    // printf("Plaintext: ");
-    // print_HEX(plain_data, sizeof(plain_data));
-    // printf("ass.data:");
-    // print_HEX(Associated_data, sizeof(Associated_data));
-    // printf("ciphertext: ");
-    // print_HEX(C, sizeof(C));
-    // printf("tag: \t");
-    // print_HEX(calculated_tag, TAG_LEN);
-    // printf("received: \t");
-    // print_HEX(P, sizeof(P));
+    //Finalization
+    uint8_t Tag_received[TAG_LEN];
+    Init_tag(S, Key, Tag_received);
+
+    //******************************IN GIÁ TRỊ******************************
+
+    print_HEX("Key", Key, KEY_LEN);
+    print_HEX("Nonce", Nonce, NONCE_LEN);
+    print_HEX("Plaintext", plain_data, sizeof(plain_data));
+    print_HEX("ass.data", Associated_data, sizeof(Associated_data));
+    print_HEX("ciphertext", C, sizeof(C));
+    print_HEX("tag", Tag, TAG_LEN);
+    print_HEX("received", P, sizeof(P));
+
+    if(memcmp(Tag_received, Tag, TAG_LEN) == 0)
+        printf("Tag is correct!\n");
+    else printf("Tag is incorrect!\n");
 
     return 0;
 }
