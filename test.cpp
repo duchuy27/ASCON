@@ -124,10 +124,12 @@ void ascon_initialize(uint64_t S[5], const uint8_t *key, const uint8_t *nonce) {
 
     uint8_t state[40];
     memcpy(state, iv, 8);
+    printf("state iv: %016llx\n", state);
     memcpy(state + 8, key, 16);
     memcpy(state + 24, nonce, 16);
-
+    printf("state : %016llx\n", );
     bytes_to_state(S, state);
+
     ascon_permutation(S, A);
 
     uint8_t zero_key[40] = {0};
@@ -140,38 +142,38 @@ void ascon_initialize(uint64_t S[5], const uint8_t *key, const uint8_t *nonce) {
     }
 }
 
-void ascon_process_associated_data(uint64_t *S, int b, int rate, const uint8_t *associateddata, size_t ad_len) {
-    if (ad_len > 0) {
-        // == padding == //
-        size_t ad_lastlen = ad_len % rate;  // length of last block in the raw associated data (before padding)
-        size_t ad_zero_bytes = rate - (ad_lastlen % rate) - 1;  // calculate how many zero bytes needed for padding
+// void ascon_process_associated_data(uint64_t *S, int b, int rate, const uint8_t *associateddata, size_t ad_len) {
+//     if (ad_len > 0) {
+//         // == padding == //
+//         size_t ad_lastlen = ad_len % rate;  // length of last block in the raw associated data (before padding)
+//         size_t ad_zero_bytes = rate - (ad_lastlen % rate) - 1;  // calculate how many zero bytes needed for padding
 
-        uint8_t *ad_padding = (uint8_t*)malloc(ad_zero_bytes + 1);
-        ad_padding[0] = 0x80;  // padding starts with 0x80
-        memset(ad_padding + 1, 0x00, ad_zero_bytes);  // followed by zeros
+//         uint8_t *ad_padding = (uint8_t*)malloc(ad_zero_bytes + 1);
+//         ad_padding[0] = 0x80;  // padding starts with 0x80
+//         memset(ad_padding + 1, 0x00, ad_zero_bytes);  // followed by zeros
 
-        size_t ad_padded_len = ad_len + ad_zero_bytes + 1;
-        uint8_t *ad_padded = (uint8_t*)malloc(ad_padded_len);
-        memcpy(ad_padded, associateddata, ad_len);
-        memcpy(ad_padded + ad_len, ad_padding, ad_zero_bytes + 1);
-        free(ad_padding);
+//         size_t ad_padded_len = ad_len + ad_zero_bytes + 1;
+//         uint8_t *ad_padded = (uint8_t*)malloc(ad_padded_len);
+//         memcpy(ad_padded, associateddata, ad_len);
+//         memcpy(ad_padded + ad_len, ad_padding, ad_zero_bytes + 1);
+//         free(ad_padding);
 
-        // == absorption of associated data == //
-        // XOR padded associated data with the rate, then permute
-        for (size_t block = 0; block < ad_padded_len; block += rate) {
-            uint64_t ad_block = 0;
-            memcpy(&ad_block, ad_padded + block, 8);  // assuming rate is 8 bytes
-            S[0] ^= ad_block;
-            ascon_permutation(S, b);
-        }
+//         // == absorption of associated data == //
+//         // XOR padded associated data with the rate, then permute
+//         for (size_t block = 0; block < ad_padded_len; block += rate) {
+//             uint64_t ad_block = 0;
+//             memcpy(&ad_block, ad_padded + block, 8);  // assuming rate is 8 bytes
+//             S[0] ^= ad_block;
+//             ascon_permutation(S, b);
+//         }
 
-        free(ad_padded);
-    }
+//         free(ad_padded);
+//     }
 
-    // state is XORed with 1 for domain separation --> S ^ (0**319 || 1)
-    // we only need to XOR 1 with the last row because the first 4 rows will remain unchanged
-    S[4] ^= 1;
-}
+//     // state is XORed with 1 for domain separation --> S ^ (0**319 || 1)
+//     // we only need to XOR 1 with the last row because the first 4 rows will remain unchanged
+//     S[4] ^= 1;
+// }
 void ascon_process_associated_data(uint64_t S[5], const uint8_t *ad, size_t adlen) {
     if (adlen > 0) {
         size_t blocks = adlen / RATE;
@@ -201,7 +203,6 @@ void ascon_process_associated_data(uint64_t S[5], const uint8_t *ad, size_t adle
                 ((uint64_t)last_block[5] << 16) |
                 ((uint64_t)last_block[6] << 8) |
                 (uint64_t)last_block[7];
-
         ascon_permutation(S, B);
     }
     S[4] ^= 1;

@@ -3,16 +3,21 @@
 #include <string.h>
 #include "ascon.h"
 
-const uint8_t Key[KEY_LEN] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6};
-const uint8_t Nonce[NONCE_LEN] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6};
-const char associated_data[] = "ASCON";
-const char plain_data[] = "ascon";
+// const uint8_t Key[KEY_LEN] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6};
+// const uint8_t Nonce[NONCE_LEN] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6};
+const uint8_t Key[16] = {0xea, 0xa9, 0x11, 0x9a, 0xa3, 0xa9, 0xbd, 0x5e, 0x50, 0xbc, 0xcd, 0xa4, 0xe1, 0x3d, 0x1c, 0x03};
+const uint8_t Nonce[16] = {0x1a, 0x65, 0x27, 0xa3, 0x66, 0x45, 0xdd, 0xb9, 0x49, 0x06, 0x71, 0xdc, 0x5d, 0x1e, 0x1e, 0xbb};
+// const char associated_data[] = "ASCON";
+// const char plain_data[] = "ascon";
+const char associated_data[] = "just having fun";
+const char plain_data[] = "ASCON";
 
 int main() {
     //Initialization
     uint8_t IV[IV_LEN];
     uint8_t S[S_LEN];
 
+    
     // Tạo IV dựa trên thông số k, r, a, và b cho Ascon-128
     Init_IV(IV, 128, 12, 8, 6);
 
@@ -68,8 +73,10 @@ int main() {
     //*******************************************************
     
     if(memcmp(calculated_tag, calculated_tag_new, TAG_LEN) == 0){
-        // print_HEX(calculated_tag, TAG_LEN);
-        // print_HEX(calculated_tag_new, TAG_LEN);
+        printf("tag:");
+         print_HEX(calculated_tag, TAG_LEN);
+         printf("\ntag after:");
+         print_HEX(calculated_tag_new, TAG_LEN);
         printf("Tag is correct!\n");
     } else {
         printf("Tag is incorrect!\n");
