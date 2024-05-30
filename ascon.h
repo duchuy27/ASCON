@@ -19,7 +19,7 @@ const uint8_t s_box[32] = {0x4, 0xb, 0x1f, 0x14, 0x1a, 0x15, 0x9, 0x2, 0x1b, 0x5
 
 //In giá trị ra
 void print_HEX(const char *label, const uint8_t vari[], int len){
-    printf("%s: \t", label);
+    printf("%s: ", label);
     for (int i = 0; i < len; i++) {
         if(i%8 == 0){
             printf("\t");

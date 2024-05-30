@@ -14,7 +14,7 @@ int main() {
 
     //******************************MÃ HÓA******************************
     // Tạo S từ IV, Key, và Nonce
-    Init_S(S, IV, Key, Nonce);
+    Init_S(S, Key, Nonce);
     permutation(S, A);
 
     for (size_t i = 0; i < KEY_LEN; i++) {
@@ -34,7 +34,7 @@ int main() {
 
     //******************************GIẢI MÃ******************************
     // Tạo lại S từ IV, Key, và Nonce
-    Init_S(S, IV, Key, Nonce);
+    Init_S(S, Key, Nonce);
     permutation(S, A);
 
     for (size_t i = 0; i < KEY_LEN; i++) {
