@@ -5,7 +5,7 @@
 
 const uint8_t Key[KEY_LEN] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6};
 const uint8_t Nonce[NONCE_LEN] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6};
-const char Associated_data[] = "ASCON";
+const char Associated_data[] = "ASCON123456789123456789";
 const char plain_data[] = "Hello, Huy";
 
 int main() {

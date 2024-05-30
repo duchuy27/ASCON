@@ -384,7 +384,6 @@ def ascon_permutation(S, rounds=1):
         S[2] ^= 0XFFFFFFFFFFFFFFFF
         if debugpermutation: printwords(S, "substitution layer:")
         # --- linear diffusion layer ---
-        S[0] = rotr(S[0],19)
         S[0] ^= rotr(S[0], 19) ^ rotr(S[0], 28)
         S[1] ^= rotr(S[1], 61) ^ rotr(S[1], 39)
         S[2] ^= rotr(S[2],  1) ^ rotr(S[2],  6)
@@ -446,8 +445,8 @@ def demo_aead(variant):
     key   = b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x00\x01\x02\x03\x04\x05\x06"
     nonce = b"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x00\x01\x02\x03\x04\x05\x06"
     
-    associateddata = b"ASCON\0"
-    plaintext      = b"ascon\0"
+    associateddata = b"ASCON123456789123456789\0"
+    plaintext      = b"Hello, Huy\0"
 
     ciphertext        = ascon_encrypt(key, nonce, associateddata, plaintext,  variant)
     receivedplaintext = ascon_decrypt(key, nonce, associateddata, ciphertext, variant)

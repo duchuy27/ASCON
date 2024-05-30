@@ -184,7 +184,7 @@ void pL(uint8_t *S) {
 void permutation(uint8_t *S, const int num_rounds) {
     for (int i = 12 - num_rounds; i < 12; i++) {
         // Bước pC - thêm hằng số vòng vào từ x2
-        pC(S, round_constants[i]);;
+        pC(S, round_constants[i]);
         // Bước pS - cập nhật trạng thái với S-box
         //pS_lookup_table(S);
         pS(S);
