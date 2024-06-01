@@ -70,15 +70,6 @@ void Init_IV(uint8_t *IV, uint8_t k, uint8_t r, uint8_t a, uint8_t b) {
     }
 }
 
-void Init_S(uint8_t *S, const uint8_t *Key, const uint8_t *Nonce) {
-    uint8_t IV[IV_LEN];
-    Init_IV(IV, K, RATE*8, A, B);
-    // S = IV || K || N
-    memcpy(S, IV, IV_LEN);
-    memcpy(S + IV_LEN, Key, KEY_LEN);
-    memcpy(S + IV_LEN + KEY_LEN, Nonce, NONCE_LEN);
-}
-
 // Hàm pC - Addition of Constants
 void pC(uint8_t* S, const uint64_t round_constant) {
     S[3*REG_SIZE-1] ^= round_constant;
@@ -193,6 +184,21 @@ void permutation(uint8_t *S, const int num_rounds) {
     }
 }
 
+void Init_S(uint8_t *S, const uint8_t *Key, const uint8_t *Nonce) {
+    uint8_t IV[IV_LEN];
+    Init_IV(IV, K, RATE*8, A, B);
+    // S = IV || K || N
+    memcpy(S, IV, IV_LEN);
+    memcpy(S + IV_LEN, Key, KEY_LEN);
+    memcpy(S + IV_LEN + KEY_LEN, Nonce, NONCE_LEN);
+
+    permutation(S, A);
+
+    for (size_t i = 0; i < KEY_LEN; i++) {
+        S[S_LEN - KEY_LEN + i] ^= Key[i];
+    }
+}
+
 // Hàm chuyển đổi bytes thành số nguyên
 uint64_t bytes_to_int(const uint8_t *bytes) {
     return ((uint64_t)bytes[0] << 56) |
@@ -297,3 +303,21 @@ void decrypt_ciphertext(uint8_t *S, uint8_t *Cipher_data, size_t C_LEN, uint8_t 
         S[i] ^= Pt_padded[i];
     }
 }
+
+void encrypt(const uint8_t *Key, const uint8_t *Nonce, const uint8_t *Associated_data, int A_LEN, const uint8_t *Plain_data, int P_LEN, uint8_t *Cipher_data, uint8_t *Tag){
+    uint8_t S[S_LEN];
+
+    Init_S(S, Key, Nonce);
+    process_associated_data(S, Associated_data, A_LEN);
+    encrypt_plaintext(S, Plain_data, P_LEN, Cipher_data);
+    Init_tag(S, Key, Tag);
+}
+
+void decrypt(const uint8_t *Key, const uint8_t *Nonce, const uint8_t *Associated_data, int A_LEN, uint8_t *Cipher_data, int C_LEN, uint8_t *Plain_data, uint8_t *Tag){
+    uint8_t S[S_LEN];
+
+    Init_S(S, Key, Nonce);
+    process_associated_data(S, Associated_data, A_LEN);
+    decrypt_ciphertext(S, Cipher_data, C_LEN, Plain_data);
+    Init_tag(S, Key, Tag);
+} 
