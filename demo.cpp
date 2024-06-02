@@ -26,6 +26,14 @@ void ascon_process_ciphertext(uint64_t S[5], uint8_t *plaintext, const uint8_t *
 void ascon_finalize(uint64_t *S, const uint8_t *key, uint8_t *tag);
 void print_hex(const char *label, const uint8_t *data, size_t len);
 
+void print_hex_64(const char *label, const uint64_t *data, int len){
+    printf("%s: ", label);
+    for (int i = 0; i < 5; i++) {
+        printf("%016llx\t", (unsigned long long)*(data+i));
+    }
+    printf("\n");
+}
+
 uint64_t bytes_to_uint64(const uint8_t *bytes) {
     uint64_t value = 0;
     for (int i = 0; i < 8; i++) {
@@ -54,14 +62,12 @@ void print_hex(const char *label, const uint8_t *data, size_t len) {
 
 void ascon_encrypt(const uint8_t *key, const uint8_t *nonce, const uint8_t *ad, size_t adlen, const uint8_t *plaintext, size_t len, uint8_t *ciphertext, uint8_t *tag) {
     uint64_t S[5] = {0};
-    
+
     ascon_initialize(S, key, nonce);
     ascon_process_associated_data(S, ad, adlen);
     ascon_process_plaintext(S, ciphertext, plaintext, len);
     print_hex("ciphertext",ciphertext,len);
     ascon_finalize(S, key, tag);
-    // print_hex("tag",tag,16);
-    
 }
 
 int ascon_decrypt(const uint8_t *key, const uint8_t *nonce, const uint8_t *ad, size_t adlen, const uint8_t *ciphertext, size_t len, const uint8_t *tag, uint8_t *plaintext) {
@@ -69,8 +75,10 @@ int ascon_decrypt(const uint8_t *key, const uint8_t *nonce, const uint8_t *ad, s
     uint8_t check_tag[16];
     ascon_initialize(S, key, nonce);
     ascon_process_associated_data(S, ad, adlen);
+    
     ascon_process_ciphertext(S, plaintext, ciphertext, len);
-    print_hex("plaintext_receive",plaintext,5);
+    
+    print_hex("plaintext_receive",plaintext,len);
     ascon_finalize(S, key, check_tag);
     print_hex("check_tag",check_tag,16);
     print_hex("tag",tag,16);
@@ -132,6 +140,18 @@ uint64_t rotr(uint64_t val, int r) {
     return (val >> r) | (val << (64 - r));
 }
 
+uint64_t reverse_bytes(uint64_t val) {
+    val = ((val & 0x00000000000000FFULL) << 56) |
+          ((val & 0x000000000000FF00ULL) << 40) |
+          ((val & 0x0000000000FF0000ULL) << 24) |
+          ((val & 0x00000000FF000000ULL) << 8)  |
+          ((val & 0x000000FF00000000ULL) >> 8)  |
+          ((val & 0x0000FF0000000000ULL) >> 24) |
+          ((val & 0x00FF000000000000ULL) >> 40) |
+          ((val & 0xFF00000000000000ULL) >> 56);
+    return val;
+}
+
 void ascon_initialize(uint64_t S[5], const uint8_t *key, const uint8_t *nonce) {
     static const uint8_t iv[8] = {0x80, 0x40, 0x0c, 0x06, 0x00, 0x00, 0x00, 0x00};
 
@@ -141,6 +161,7 @@ void ascon_initialize(uint64_t S[5], const uint8_t *key, const uint8_t *nonce) {
     memcpy(state + 24, nonce, 16);
 
     bytes_to_state(S, state);
+    
     ascon_permutation(S, A);
 
     uint8_t zero_key[40] = {0};
@@ -292,9 +313,11 @@ void ascon_process_ciphertext(uint64_t S[5], uint8_t *plaintext, const uint8_t *
         plaintext[i * RATE + 6] = (p >> 8) & 0xFF;
         plaintext[i * RATE + 7] = p & 0xFF;
 
+        S[0] = c;
+
         ascon_permutation(S, B);
     }
-
+    
     uint8_t last_block[8] = {0};
     memcpy(last_block, ciphertext + blocks * RATE, last_block_len);
 
@@ -306,106 +329,30 @@ void ascon_process_ciphertext(uint64_t S[5], uint8_t *plaintext, const uint8_t *
                  ((uint64_t)last_block[5] << 16) |
                  ((uint64_t)last_block[6] << 8) |
                  (uint64_t)last_block[7];
+    
+    uint64_t p;
+    p = S[0] ^ c;
 
-    S[0] ^= c;
-
-    uint64_t p = S[0];
     for (size_t i = 0; i < last_block_len; ++i) {
         plaintext[blocks * RATE + i] = (p >> (56 - i * 8)) & 0xFF;
     }
+
+    uint8_t Pt_padded[RATE];
+    memset(Pt_padded, 0x00, RATE);
+    memcpy(Pt_padded, plaintext + (len - last_block_len), last_block_len);
+    Pt_padded[last_block_len] = 0x80;
+
+    uint64_t pt = ((uint64_t)Pt_padded[0] << 56) |
+                 ((uint64_t)Pt_padded[1] << 48) |
+                 ((uint64_t)Pt_padded[2] << 40) |
+                 ((uint64_t)Pt_padded[3] << 32) |
+                 ((uint64_t)Pt_padded[4] << 24) |
+                 ((uint64_t)Pt_padded[5] << 16) |
+                 ((uint64_t)Pt_padded[6] << 8) |
+                 (uint64_t)Pt_padded[7];
+        
+    S[0] ^= pt;
 }
-
-// void ascon_finalize(uint64_t *S, const uint8_t *key, uint8_t *tag) {
-//     assert(key != NULL);
-//     assert(tag != NULL);
-
-//     uint64_t key_part1 = 0;
-//     uint64_t key_part2 = 0;
-
-//     memcpy(&key_part1, key, 8);
-//     memcpy(&key_part2, key + 8, 8);
-    
-//     S[1] ^= key_part1;
-//     S[2] ^= key_part2;
-
-//     ascon_permutation(S, A);
-
-//     S[3] ^= key_part1;
-//     S[4] ^= key_part2;
-
-//     memcpy(tag, &S[3], 8);
-//     memcpy(tag + 8, &S[4], 8);
-// }
-// void ascon_finalize(uint64_t *S, const uint8_t *key, uint8_t *tag) {
-//     // uint64_t num1 = 0;
-//     // uint64_t num2 = 0;
-//     // // Xử lý 8 byte đầu tiên của key
-//     // for (int i = 0; i < 8; i++) {
-//     //     num1 = (num1 << 8) | key[i];
-//     // }
-//     // S[1] ^= num1;
-
-//     // // Xử lý các byte từ 8 đến 15 của key
-//     // for (int i = 8; i < 16; i++) {
-//     //     num2 = (num2 << 8) | key[i];
-//     // }
-//     // S[2] ^= num2;
-//     unsigned long key_part1 = 0 , key_part2 = 0;
-//     memcpy(&key_part1, key, 8);
-//     memcpy(&key_part2, key + 8, 8);
-
-//     S[1] ^= key_part1;
-//     S[2] ^= key_part2;
-//     ascon_permutation(S, A);
-
-//     // for (int i = 0; i < 8; i++) {
-//     //     num1 = (num1 << 8) | key[i];
-//     // }
-//     // S[3] ^= num1;
-//     // for (int i = 0; i < 8; i++) {
-//     //     num2 = (num2 << 8) | key[i];
-//     // }
-//     // S[4] ^= num2;
-//     memcpy(&key_part1, key, 8);
-//     memcpy(&key_part2, key + 8, 8);
-//     S[3] ^= key_part1;
-//     S[4] ^= key_part2;
-//     memcpy(tag, &S[3], 8);
-//     memcpy(tag + 8, &S[4], 8);
-// }
-// void ascon_finalize(uint64_t S[5], uint8_t *tag, const uint8_t *key) {
-//     uint8_t key_block[40] = {0};
-//     memcpy(key_block + 24, key, 16);
-//     uint64_t key_state[5];
-//     bytes_to_state(key_state, key_block);
-
-//     for (int i = 0; i < 5; ++i) {
-//         S[i] ^= key_state[i];
-//     }
-
-//     ascon_permutation(S, A);
-
-//     for (int i = 0; i < 5; ++i) {
-//         S[i] ^= key_state[i];
-//     }
-
-//     for (int i = 0; i < 16; ++i) {
-//         tag[i] = (S[i / 8] >> (56 - 8 * (i % 8))) & 0xFF;
-//     }
-// }
-// void ascon_finalize(uint64_t *S, const uint8_t *Key, uint8_t *tag) {
-//     // XOR internal state với key 0^r||K||0^(360-r-k)
-//     for (size_t i = RATE; i < (KEY_LEN + RATE); i++) {
-//         ((uint8_t*)S)[i] ^= Key[i - RATE];
-//     }
-//     ascon_permutation(S, A);
-//     // XOR S and Key
-//     for (size_t i = S_LEN - TAG_LEN; i < S_LEN; i++) {
-//         ((uint8_t*)S)[i] ^= Key[i - (S_LEN - TAG_LEN)];
-//     }
-//     // Sao chép 128 bits cuối cùng của trạng thái S vào tag
-//     memcpy(tag, ((uint8_t*)S) + S_LEN - TAG_LEN, TAG_LEN);
-// }
 void ascon_finalize(uint64_t *S, const uint8_t *key, uint8_t *tag) {
     // Ensure the key length is 16 bytes
     assert(key != NULL);
@@ -434,38 +381,25 @@ void ascon_finalize(uint64_t *S, const uint8_t *key, uint8_t *tag) {
     }
 }
 int main() {
-    uint8_t key[16] = {0xea, 0xa9, 0x11, 0x9a, 0xa3, 0xa9, 0xbd, 0x5e, 0x50, 0xbc, 0xcd, 0xa4, 0xe1, 0x3d, 0x1c, 0x03};
-    uint8_t nonce[16] = {0x1a, 0x65, 0x27, 0xa3, 0x66, 0x45, 0xdd, 0xb9, 0x49, 0x06, 0x71, 0xdc, 0x5d, 0x1e, 0x1e, 0xbb};
-    uint8_t associateddata[] = "just having fun";
-    uint8_t plaintext[] = "ASCON";
+    uint8_t key[16] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6};
+    uint8_t nonce[16] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6};
+    uint8_t associateddata[] = "ASCON123456789123456789";
+    uint8_t plaintext[] = "Hello, Huy";
     uint8_t ciphertext[sizeof(plaintext) + 16];
     uint8_t tag[16];
 
-
     print_hex("key",key,16);
     print_hex("nonce", nonce, 16);
-    print_hex("plaintext", plaintext, 5);
+    print_hex("plaintext", plaintext, sizeof(plaintext));
 
-    ascon_encrypt(key, nonce, associateddata, sizeof(associateddata) - 1, plaintext, sizeof(plaintext) - 1, ciphertext, tag);    uint8_t decrypted[sizeof(plaintext) - 1];
-    int result = ascon_decrypt(key, nonce, associateddata, sizeof(associateddata) - 1, ciphertext, sizeof(plaintext) - 1, tag, decrypted);
+    ascon_encrypt(key, nonce, associateddata, sizeof(associateddata), plaintext, sizeof(plaintext), ciphertext, tag);    
+    uint8_t decrypted[sizeof(plaintext)];
+    int result = ascon_decrypt(key, nonce, associateddata, sizeof(associateddata), ciphertext, sizeof(plaintext), tag, decrypted);
     if (result == 0) {
         printf("Decryption successful\n");
     } else {
         printf("Decryption failed\n");
     }
-        // int result = ascon_decrypt(key, nonce, associateddata, sizeof(associateddata) - 1, ciphertext, sizeof(plaintext) - 1, tag, decrypted);
-        // if (result == 0) {
-        //     uint8_t computed_tag[16];
-        //     ascon_finalize(S, key, computed_tag);;
-        //     print_hex("computed_tag", computed_tag,16);
-        //     if (memcmp(tag, computed_tag, 16) == 0) {
-        //         printf("Decryption successful\n");
-        //     } else {
-        //         printf("Decryption failed\n");
-        //     }
-        // } else {
-        //     printf("DONE\n");
-        // }
      
     return 0;
 }
