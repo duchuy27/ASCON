@@ -75,9 +75,7 @@ int ascon_decrypt(const uint8_t *key, const uint8_t *nonce, const uint8_t *ad, s
     uint8_t check_tag[16];
     ascon_initialize(S, key, nonce);
     ascon_process_associated_data(S, ad, adlen);
-    
     ascon_process_ciphertext(S, plaintext, ciphertext, len);
-    
     print_hex("plaintext_receive",plaintext,len);
     ascon_finalize(S, key, check_tag);
     print_hex("check_tag",check_tag,16);
@@ -342,7 +340,7 @@ void ascon_process_ciphertext(uint64_t S[5], uint8_t *plaintext, const uint8_t *
     memcpy(Pt_padded, plaintext + (len - last_block_len), last_block_len);
     Pt_padded[last_block_len] = 0x80;
 
-    uint64_t pt = ((uint64_t)Pt_padded[0] << 56) |
+    uint64_t pt =((uint64_t)Pt_padded[0] << 56) |
                  ((uint64_t)Pt_padded[1] << 48) |
                  ((uint64_t)Pt_padded[2] << 40) |
                  ((uint64_t)Pt_padded[3] << 32) |
@@ -381,10 +379,12 @@ void ascon_finalize(uint64_t *S, const uint8_t *key, uint8_t *tag) {
     }
 }
 int main() {
-    uint8_t key[16] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6};
-    uint8_t nonce[16] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6};
-    uint8_t associateddata[] = "ASCON123456789123456789";
-    uint8_t plaintext[] = "Hello, Huy";
+    //uint8_t key[16] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6};
+    uint8_t key[16] = {0xea, 0xa9, 0x11, 0x9a, 0xa3, 0xa9, 0xbd, 0x5e, 0x50, 0xbc, 0xcd, 0xa4, 0xe1, 0x3d, 0x1c, 0x03};
+    //uint8_t nonce[16] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6};
+    uint8_t nonce[16] = {0x1a, 0x65, 0x27, 0xa3, 0x66, 0x45, 0xdd, 0xb9, 0x49, 0x06, 0x71, 0xdc, 0x5d, 0x1e, 0x1e, 0xbb};
+    uint8_t associateddata[] = "just having fun";
+    uint8_t plaintext[] = "ASCON";
     uint8_t ciphertext[sizeof(plaintext) + 16];
     uint8_t tag[16];
 
@@ -392,9 +392,9 @@ int main() {
     print_hex("nonce", nonce, 16);
     print_hex("plaintext", plaintext, sizeof(plaintext));
 
-    ascon_encrypt(key, nonce, associateddata, sizeof(associateddata), plaintext, sizeof(plaintext), ciphertext, tag);    
+    ascon_encrypt(key, nonce, associateddata, sizeof(associateddata) - 1, plaintext, sizeof(plaintext) - 1 , ciphertext, tag);    
     uint8_t decrypted[sizeof(plaintext)];
-    int result = ascon_decrypt(key, nonce, associateddata, sizeof(associateddata), ciphertext, sizeof(plaintext), tag, decrypted);
+    int result = ascon_decrypt(key, nonce, associateddata, sizeof(associateddata) - 1, ciphertext, sizeof(plaintext) - 1, tag, decrypted);
     if (result == 0) {
         printf("Decryption successful\n");
     } else {
