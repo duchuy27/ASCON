@@ -1,4 +1,4 @@
-module SPI_Master
+module spi
   #(parameter SPI_MODE = 0,
     parameter CLKS_PER_HALF_BIT = 2)
   (
