@@ -1,0 +1,97 @@
+module spi_top(
+    input wire i_Rst_L,    // FPGA Reset
+    input wire i_Clk,      // FPGA Clock
+    input wire [7:0] TX_data,   // Dữ liệu để gửi
+    output reg [7:0] RX_data,   // Dữ liệu nhận
+    output reg o_TX_Ready       // Tín hiệu TX sẵn sàng
+);
+    // Tín hiệu TX kết nối giữa spi_top và spi_master
+    reg [7:0] r_Master_TX_Byte;
+    reg r_Master_TX_DV;
+
+    // Tín hiệu RX kết nối giữa spi_top và spi_master
+    reg [7:0] r_Master_RX_Byte;
+    reg r_Master_RX_DV;
+
+    // Internal signals
+    reg data_valid;  // Tín hiệu cho biết khi nào có dữ liệu TX_data để gửi
+    reg [7:0] data;  // Lưu trữ TX_data
+
+    // FSM state declarations
+    typedef enum logic [1:0] {
+        IDLE,
+        LOAD_DATA,
+        WAIT_READY
+    } state_t;
+    state_t current_state, next_state;
+
+    // Instantiate the SPI_Master module
+    SPI_Master #(
+        .SPI_MODE(0),
+        .CLKS_PER_HALF_BIT(2)
+    ) SPI_Master_UUT (
+        .i_Rst_L(i_Rst_L),
+        .i_Clk(i_Clk),
+
+        // TX (MOSI) Signals
+        .i_TX_Byte(r_Master_TX_Byte),
+        .i_TX_DV(r_Master_TX_DV),
+        .o_TX_Ready(o_TX_Ready),
+
+        // RX (MISO) Signals
+        .o_RX_Byte(r_Master_RX_Byte),
+        .o_RX_DV(r_Master_RX_DV),
+
+        // SPI Interface
+        .o_SPI_Clk(w_SPI_Clk),
+        .i_SPI_MISO(w_SPI_MISO),
+        .o_SPI_MOSI(w_SPI_MOSI)
+    );
+
+    // FSM for controlling data transmission
+    always @(posedge i_Clk or negedge i_Rst_L) begin
+        if (~i_Rst_L) begin
+            current_state <= IDLE;
+            r_Master_TX_Byte <= 8'd0;
+            r_Master_TX_DV <= 1'b0;
+            data_valid <= 0;
+        end else begin
+            current_state <= next_state;
+        end
+    end
+
+    always @(*) begin
+        // Default values
+        next_state = current_state;
+        r_Master_TX_DV = 1'b0;
+
+        // Check for TX_data availability
+        if (TX_data !== 8'h00) begin
+            data = TX_data;
+            data_valid = 1;
+        end
+
+        case (current_state)
+            IDLE: begin
+                if (data_valid) begin
+                    next_state = LOAD_DATA;
+                end
+            end
+
+            LOAD_DATA: begin
+                r_Master_TX_Byte = data;
+                r_Master_TX_DV = 1'b1;
+                next_state = WAIT_READY;
+            end
+
+            WAIT_READY: begin
+                if (o_TX_Ready) begin
+                    data_valid = 0;
+                    next_state = IDLE;
+                end
+            end
+
+            default: next_state = IDLE;
+        endcase
+    end
+endmodule

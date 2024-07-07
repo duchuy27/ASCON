@@ -1,0 +1,122 @@
+module spi_top_new(
+   // Control/Data Signals
+    input               i_Rst_L,            // FPGA Reset
+    input               i_Clk,              // FPGA Clock
+    
+    // TX (MOSI) Signals
+    input [15:0]        i_TX_Byte,          // Byte để truyền qua MOSI
+    output reg          o_TX_Ready,         // Transmit Ready cho byte tiếp theo
+    
+    // RX (MISO) Signals
+    output reg          o_RX_DV,            // Data Valid pulse (1 clock cycle)
+    output reg [7:0]    o_RX_Byte,          // Byte nhận được trên MISO
+
+    // output reg          o_SPI_Clk,
+    // input               i_SPI_MISO,
+    // output reg          o_SPI_MOSI
+);
+    
+    typedef enum logic [1:0]{
+        WAIT_DATA,
+        TRANSMITTING_DATA,
+        TRANSMITTING_ADDRESS,
+        DONE
+    } state_t;
+    state_t current_state, next_state;
+
+    reg r_TX_DV;
+    reg TX_LOWHIGH = 0;
+    reg [7:0] r_TX_Byte;
+    reg [15:0] r_TX_Byte_Previous = 0;
+
+    logic w_SPI_Clk;
+    logic w_SPI_MOSI;
+    logic w_SPI_MISO;
+
+    // Instantiate the SPI_Master module
+    spi_master #(
+        .SPI_MODE(0),
+        .CLKS_PER_HALF_BIT(2)
+    ) spi_master_UUT (
+        .i_Rst_L(i_Rst_L),
+        .i_Clk(i_Clk),
+
+        // TX (MOSI) Signals
+        .i_TX_Byte(r_TX_Byte),
+        .i_TX_DV(r_TX_DV),
+        .o_TX_Ready(o_TX_Ready),
+
+        // RX (MISO) Signals
+        .o_RX_Byte(o_RX_Byte),
+        .o_RX_DV(o_RX_DV),
+
+        .o_SPI_Clk(w_SPI_Clk),
+        .i_SPI_MISO(w_SPI_MISO),
+        .o_SPI_MOSI(w_SPI_MOSI)
+    );
+
+    always @(posedge i_Clk or negedge i_Rst_L) begin
+        if (~i_Rst_L) begin
+            current_state       <= WAIT_DATA;
+        end else begin
+            current_state       <= next_state;
+        end
+    end
+
+    always @(*) begin
+        if (~i_Rst_L) begin
+            r_TX_DV = 0;
+            r_TX_Byte = 0;
+            r_TX_Byte_Previous = 0;
+            TX_LOWHIGH = 0;
+            next_state = WAIT_DATA;
+        end
+        
+        case (current_state)
+            WAIT_DATA: begin
+                if (r_TX_Byte_Previous != i_TX_Byte && i_Rst_L) begin
+                    r_TX_DV = 1;
+                    if (TX_LOWHIGH) begin
+                        r_TX_Byte = i_TX_Byte[15:8];
+                        next_state = TRANSMITTING_DATA;
+                    end else begin
+                        r_TX_Byte = i_TX_Byte[7:0];
+                        next_state = TRANSMITTING_ADDRESS;
+                    end
+                end
+                else begin
+                    next_state = WAIT_DATA;
+                end
+                
+            end
+
+            TRANSMITTING_ADDRESS: begin
+                r_TX_DV = 0;
+                if (o_RX_DV) begin
+                    next_state = DONE;
+                end else begin
+                    next_state = TRANSMITTING_ADDRESS;
+                end
+            end
+
+            TRANSMITTING_DATA: begin
+                r_TX_DV = 0;
+                if (o_RX_DV) begin
+                    next_state = DONE;
+                end else begin
+                    next_state = TRANSMITTING_DATA;
+                end
+            end
+
+            DONE: begin
+                if (TX_LOWHIGH) begin
+                    r_TX_Byte_Previous = i_TX_Byte;
+                end 
+                TX_LOWHIGH = ~TX_LOWHIGH;
+                next_state = WAIT_DATA;
+            end
+
+            default: next_state = WAIT_DATA;
+        endcase
+    end
+endmodule
